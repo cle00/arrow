@@ -19,6 +19,7 @@ package org.apache.arrow.consumers;
 
 import java.io.IOException;
 
+import org.apache.arrow.vector.FieldVector;
 import org.apache.avro.io.Decoder;
 
 /**
@@ -37,4 +38,14 @@ public interface Consumer {
    * Add null value to vector by making writer position + 1.
    */
   void addNull();
+
+  /**
+   * Set the position to write value into vector.
+   */
+  void setPosition(int index);
+
+  /**
+   * Get the vector within the consumer.
+   */
+  FieldVector getVector();
 }

@@ -165,15 +165,19 @@ date64 castDATE_utf8(int64_t execution_context, const char* input, int32 length)
 
 timestamp castTIMESTAMP_utf8(int64_t execution_context, const char* input, int32 length);
 timestamp castTIMESTAMP_date64(date64);
+const char* castVARCHAR_timestamp_int64(int64_t, timestamp, int64, int32*);
 
 int64 truncate_int64_int32(int64 in, int32 out_scale);
 
-char* substr_utf8_int64_int64(int64 context, const char* input, int32 in_len,
-                              int64 offset64, int64 length, int32* out_len);
-char* substr_utf8_int64(int64 context, const char* input, int32 in_len, int64 offset64,
-                        int32* out_len);
-char* concatOperator_utf8_utf8(int64 context, const char* left, int32 left_len,
-                               const char* right, int32 right_len, int32* out_len);
+const char* substr_utf8_int64_int64(int64 context, const char* input, int32 in_len,
+                                    int64 offset64, int64 length, int32* out_len);
+const char* substr_utf8_int64(int64 context, const char* input, int32 in_len,
+                              int64 offset64, int32* out_len);
+const char* concatOperator_utf8_utf8(int64 context, const char* left, int32 left_len,
+                                     const char* right, int32 right_len, int32* out_len);
+
+char* castVARCHAR_utf8_int64(int64 context, const char* data, int32 data_len,
+                             int64_t out_len, int32_t* out_length);
 }  // extern "C"
 
 #endif  // PRECOMPILED_TYPES_H

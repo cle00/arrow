@@ -17,6 +17,12 @@
 
 package org.apache.arrow.memory.util;
 
+import java.nio.ByteOrder;
+
+import org.apache.arrow.memory.util.hash.ArrowBufHasher;
+import org.apache.arrow.memory.util.hash.SimpleHasher;
+import org.apache.arrow.util.Preconditions;
+
 import io.netty.buffer.ArrowBuf;
 
 /**
@@ -25,17 +31,42 @@ import io.netty.buffer.ArrowBuf;
  */
 public final class ArrowBufPointer {
 
+  public static final boolean LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
+
+  /**
+   * The hash code when the arrow buffer is null.
+   */
+  public static final int NULL_HASH_CODE = 0;
+
   private ArrowBuf buf;
 
   private int offset;
 
   private int length;
 
+  private int hashCode = NULL_HASH_CODE;
+
+  private final ArrowBufHasher hasher;
+
+  /**
+   * A flag indicating if the underlying memory region has changed.
+   */
+  private boolean hashCodeChanged = false;
+
   /**
    * The default constructor.
    */
   public ArrowBufPointer() {
+    this(SimpleHasher.INSTANCE);
+  }
 
+  /**
+   * Constructs an arrow buffer pointer with the specified hasher.
+   * @param hasher the hasher to use.
+   */
+  public ArrowBufPointer(ArrowBufHasher hasher) {
+    Preconditions.checkNotNull(hasher);
+    this.hasher = hasher;
   }
 
   /**
@@ -45,6 +76,19 @@ public final class ArrowBufPointer {
    * @param length the length off set of the memory region pointed to.
    */
   public ArrowBufPointer(ArrowBuf buf, int offset, int length) {
+    this(buf, offset, length, SimpleHasher.INSTANCE);
+  }
+
+  /**
+   * Constructs an Arrow buffer pointer.
+   * @param buf the underlying {@link ArrowBuf}, which can be null.
+   * @param offset the start off set of the memory region pointed to.
+   * @param length the length off set of the memory region pointed to.
+   * @param hasher the hasher used to calculate the hash code.
+   */
+  public ArrowBufPointer(ArrowBuf buf, int offset, int length, ArrowBufHasher hasher) {
+    Preconditions.checkNotNull(hasher);
+    this.hasher = hasher;
     set(buf, offset, length);
   }
 
@@ -58,6 +102,8 @@ public final class ArrowBufPointer {
     this.buf = buf;
     this.offset = offset;
     this.length = length;
+
+    hashCodeChanged = true;
   }
 
   /**
@@ -85,6 +131,13 @@ public final class ArrowBufPointer {
       return false;
     }
 
+    if (!hasher.equals(((ArrowBufPointer) o).hasher)) {
+      // note that the hasher is incorporated in equality determination
+      // this is to avoid problems in cases where two Arrow buffer pointers are not equal
+      // while having different hashers and equal hash codes.
+      return false;
+    }
+
     ArrowBufPointer other = (ArrowBufPointer) o;
     if (buf == null || other.buf == null) {
       if (buf == null && other.buf == null) {
@@ -100,7 +153,18 @@ public final class ArrowBufPointer {
 
   @Override
   public int hashCode() {
-    // implement after ARROW-5898
-    throw new UnsupportedOperationException();
+    if (!hashCodeChanged) {
+      return hashCode;
+    }
+
+    // re-compute the hash code
+    if (buf == null) {
+      hashCode = NULL_HASH_CODE;
+    } else {
+      hashCode = hasher.hashCode(buf, offset, length);
+    }
+
+    hashCodeChanged = false;
+    return hashCode;
   }
 }

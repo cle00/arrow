@@ -1050,7 +1050,15 @@ cdef class ListArray(Array):
         with nogil:
             check_status(CListArray.FromArrays(_offsets.ap[0], _values.ap[0],
                                                cpool, &out))
-        return pyarrow_wrap_array(out)
+        cdef Array result = pyarrow_wrap_array(out)
+        result.validate()
+        return result
+
+    @property
+    def values(self):
+        return self.flatten()
+
+    # TODO(wesm): Add offsets property
 
     def flatten(self):
         """
@@ -1061,6 +1069,54 @@ cdef class ListArray(Array):
         result : Array
         """
         cdef CListArray* arr = <CListArray*> self.ap
+        return pyarrow_wrap_array(arr.values())
+
+
+cdef class LargeListArray(Array):
+    """
+    Concrete class for Arrow arrays of a large list data type
+    (like ListArray, but 64-bit offsets).
+    """
+
+    @staticmethod
+    def from_arrays(offsets, values, MemoryPool pool=None):
+        """
+        Construct LargeListArray from arrays of int64 offsets and values
+
+        Parameters
+        ----------
+        offset : Array (int64 type)
+        values : Array (any type)
+
+        Returns
+        -------
+        list_array : LargeListArray
+        """
+        cdef:
+            Array _offsets, _values
+            shared_ptr[CArray] out
+        cdef CMemoryPool* cpool = maybe_unbox_memory_pool(pool)
+
+        _offsets = asarray(offsets, type='int64')
+        _values = asarray(values)
+
+        with nogil:
+            check_status(CLargeListArray.FromArrays(_offsets.ap[0],
+                                                    _values.ap[0],
+                                                    cpool, &out))
+        cdef Array result = pyarrow_wrap_array(out)
+        result.validate()
+        return result
+
+    def flatten(self):
+        """
+        Unnest this LargeListArray by one level
+
+        Returns
+        -------
+        result : Array
+        """
+        cdef CLargeListArray* arr = <CLargeListArray*> self.ap
         return pyarrow_wrap_array(arr.values())
 
 
@@ -1505,6 +1561,7 @@ cdef dict _array_classes = {
     _Type_FLOAT: FloatArray,
     _Type_DOUBLE: DoubleArray,
     _Type_LIST: ListArray,
+    _Type_LARGE_LIST: LargeListArray,
     _Type_UNION: UnionArray,
     _Type_BINARY: BinaryArray,
     _Type_STRING: StringArray,

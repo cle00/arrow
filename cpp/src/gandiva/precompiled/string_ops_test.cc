@@ -18,6 +18,7 @@
 #include <gtest/gtest.h>
 #include "gandiva/execution_context.h"
 #include "gandiva/precompiled/types.h"
+
 namespace gandiva {
 
 TEST(TestStringOps, TestCompare) {
@@ -74,12 +75,31 @@ TEST(TestStringOps, TestCharLength) {
       << ctx.get_error();
 }
 
+TEST(TestStringOps, TestCastVarhcar) {
+  gandiva::ExecutionContext ctx;
+  uint64_t ctx_ptr = reinterpret_cast<int64>(&ctx);
+  int32 out_len = 0;
+
+  char* out_str = castVARCHAR_utf8_int64(ctx_ptr, "asdf", 4, 1, &out_len);
+  EXPECT_EQ(std::string(out_str, out_len), "a");
+  EXPECT_FALSE(ctx.has_error());
+
+  out_str = castVARCHAR_utf8_int64(ctx_ptr, "asdf", 4, 6, &out_len);
+  EXPECT_EQ(std::string(out_str, out_len), "asdf");
+  EXPECT_FALSE(ctx.has_error());
+
+  // do not truncate if output length is 0
+  out_str = castVARCHAR_utf8_int64(ctx_ptr, "asdf", 4, 0, &out_len);
+  EXPECT_EQ(std::string(out_str, out_len), "asdf");
+  EXPECT_FALSE(ctx.has_error());
+}
+
 TEST(TestStringOps, TestSubstring) {
   gandiva::ExecutionContext ctx;
   uint64_t ctx_ptr = reinterpret_cast<int64>(&ctx);
   int32 out_len = 0;
 
-  char* out_str = substr_utf8_int64_int64(ctx_ptr, "asdf", 4, 1, 0, &out_len);
+  const char* out_str = substr_utf8_int64_int64(ctx_ptr, "asdf", 4, 1, 0, &out_len);
   EXPECT_EQ(std::string(out_str, out_len), "");
   EXPECT_FALSE(ctx.has_error());
 
@@ -125,7 +145,7 @@ TEST(TestStringOps, TestConcat) {
   uint64_t ctx_ptr = reinterpret_cast<int64>(&ctx);
   int32 out_len = 0;
 
-  char* out_str = concatOperator_utf8_utf8(ctx_ptr, "asdf", 4, "jkl", 3, &out_len);
+  const char* out_str = concatOperator_utf8_utf8(ctx_ptr, "asdf", 4, "jkl", 3, &out_len);
   EXPECT_EQ(std::string(out_str, out_len), "asdfjkl");
   EXPECT_FALSE(ctx.has_error());
 

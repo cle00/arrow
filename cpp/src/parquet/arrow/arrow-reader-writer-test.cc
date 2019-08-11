@@ -44,6 +44,7 @@
 #include "parquet/arrow/schema.h"
 #include "parquet/arrow/test-util.h"
 #include "parquet/arrow/writer.h"
+#include "parquet/column_writer.h"
 #include "parquet/file_writer.h"
 #include "parquet/test-util.h"
 
@@ -383,8 +384,7 @@ void DoConfiguredRoundtrip(
 
   std::unique_ptr<FileReader> reader;
   ASSERT_OK_NO_THROW(OpenFile(std::make_shared<BufferReader>(buffer),
-                              ::arrow::default_memory_pool(),
-                              ::parquet::default_reader_properties(), nullptr, &reader));
+                              ::arrow::default_memory_pool(), &reader));
   ASSERT_OK_NO_THROW(reader->ReadTable(out));
 }
 
@@ -421,8 +421,7 @@ void DoSimpleRoundtrip(const std::shared_ptr<Table>& table, bool use_threads,
 
   std::unique_ptr<FileReader> reader;
   ASSERT_OK_NO_THROW(OpenFile(std::make_shared<BufferReader>(buffer),
-                              ::arrow::default_memory_pool(),
-                              ::parquet::default_reader_properties(), nullptr, &reader));
+                              ::arrow::default_memory_pool(), &reader));
 
   reader->set_use_threads(use_threads);
 
@@ -461,7 +460,7 @@ static std::shared_ptr<GroupNode> MakeSimpleSchema(const DataType& type,
         case ::arrow::Type::DECIMAL: {
           const auto& decimal_type =
               static_cast<const ::arrow::Decimal128Type&>(values_type);
-          byte_width = DecimalSize(decimal_type.precision());
+          byte_width = internal::DecimalSize(decimal_type.precision());
         } break;
         default:
           break;
@@ -472,7 +471,7 @@ static std::shared_ptr<GroupNode> MakeSimpleSchema(const DataType& type,
       break;
     case ::arrow::Type::DECIMAL: {
       const auto& decimal_type = static_cast<const ::arrow::Decimal128Type&>(type);
-      byte_width = DecimalSize(decimal_type.precision());
+      byte_width = internal::DecimalSize(decimal_type.precision());
     } break;
     default:
       break;
@@ -499,8 +498,7 @@ class TestParquetIO : public ::testing::Test {
     std::shared_ptr<Buffer> buffer;
     ASSERT_OK_NO_THROW(sink_->Finish(&buffer));
     ASSERT_OK_NO_THROW(OpenFile(std::make_shared<BufferReader>(buffer),
-                                ::arrow::default_memory_pool(),
-                                ::parquet::default_reader_properties(), nullptr, out));
+                                ::arrow::default_memory_pool(), out));
   }
 
   void ReadSingleColumnFile(std::unique_ptr<FileReader> file_reader,
@@ -1869,8 +1867,7 @@ TEST(TestArrowReadWrite, ReadSingleRowGroup) {
 
   std::unique_ptr<FileReader> reader;
   ASSERT_OK_NO_THROW(OpenFile(std::make_shared<BufferReader>(buffer),
-                              ::arrow::default_memory_pool(),
-                              ::parquet::default_reader_properties(), nullptr, &reader));
+                              ::arrow::default_memory_pool(), &reader));
 
   ASSERT_EQ(2, reader->num_row_groups());
 
@@ -1895,6 +1892,7 @@ TEST(TestArrowReadWrite, ReadSingleRowGroup) {
 TEST(TestArrowReadWrite, GetRecordBatchReader) {
   const int num_columns = 20;
   const int num_rows = 1000;
+  const int batch_size = 100;
 
   std::shared_ptr<Table> table;
   ASSERT_NO_FATAL_FAILURE(MakeDoubleTable(num_columns, num_rows, 1, &table));
@@ -1904,25 +1902,43 @@ TEST(TestArrowReadWrite, GetRecordBatchReader) {
                                              default_arrow_writer_properties(), &buffer));
 
   ArrowReaderProperties properties = default_arrow_reader_properties();
-  properties.set_batch_size(100);
+  properties.set_batch_size(batch_size);
 
   std::unique_ptr<FileReader> reader;
-  ASSERT_OK_NO_THROW(OpenFile(std::make_shared<BufferReader>(buffer),
-                              ::arrow::default_memory_pool(), properties, &reader));
+  FileReaderBuilder builder;
+  ASSERT_OK(builder.Open(std::make_shared<BufferReader>(buffer)));
+  ASSERT_OK(builder.properties(properties)->Build(&reader));
 
+  // Read the whole file, one batch at a time.
   std::shared_ptr<::arrow::RecordBatchReader> rb_reader;
   ASSERT_OK_NO_THROW(reader->GetRecordBatchReader({0, 1}, &rb_reader));
-
-  std::shared_ptr<::arrow::RecordBatch> batch;
+  std::shared_ptr<::arrow::RecordBatch> actual_batch, expected_batch;
+  ::arrow::TableBatchReader table_reader(*table);
+  table_reader.set_chunksize(batch_size);
 
   for (int i = 0; i < 10; ++i) {
-    ASSERT_OK(rb_reader->ReadNext(&batch));
-    ASSERT_EQ(100, batch->num_rows());
-    ASSERT_EQ(20, batch->num_columns());
+    ASSERT_OK(rb_reader->ReadNext(&actual_batch));
+    ASSERT_OK(table_reader.ReadNext(&expected_batch));
+    ASSERT_NO_FATAL_FAILURE(::arrow::AssertBatchesEqual(*expected_batch, *actual_batch));
   }
 
-  ASSERT_OK(rb_reader->ReadNext(&batch));
-  ASSERT_EQ(nullptr, batch);
+  ASSERT_OK(rb_reader->ReadNext(&actual_batch));
+  ASSERT_EQ(nullptr, actual_batch);
+
+  // ARROW-6005: Read just the second row group
+  ASSERT_OK_NO_THROW(reader->GetRecordBatchReader({1}, &rb_reader));
+  std::shared_ptr<Table> second_rowgroup = table->Slice(num_rows / 2);
+  ::arrow::TableBatchReader second_table_reader(*second_rowgroup);
+  second_table_reader.set_chunksize(batch_size);
+
+  for (int i = 0; i < 5; ++i) {
+    ASSERT_OK(rb_reader->ReadNext(&actual_batch));
+    ASSERT_OK(second_table_reader.ReadNext(&expected_batch));
+    ASSERT_NO_FATAL_FAILURE(::arrow::AssertBatchesEqual(*expected_batch, *actual_batch));
+  }
+
+  ASSERT_OK(rb_reader->ReadNext(&actual_batch));
+  ASSERT_EQ(nullptr, actual_batch);
 }
 
 TEST(TestArrowReadWrite, ScanContents) {
@@ -1938,8 +1954,7 @@ TEST(TestArrowReadWrite, ScanContents) {
 
   std::unique_ptr<FileReader> reader;
   ASSERT_OK_NO_THROW(OpenFile(std::make_shared<BufferReader>(buffer),
-                              ::arrow::default_memory_pool(),
-                              ::parquet::default_reader_properties(), nullptr, &reader));
+                              ::arrow::default_memory_pool(), &reader));
 
   int64_t num_rows_returned = 0;
   ASSERT_OK_NO_THROW(reader->ScanContents({}, 256, &num_rows_returned));
@@ -1994,8 +2009,7 @@ TEST(TestArrowReadWrite, ListLargeRecords) {
 
   std::unique_ptr<FileReader> reader;
   ASSERT_OK_NO_THROW(OpenFile(std::make_shared<BufferReader>(buffer),
-                              ::arrow::default_memory_pool(),
-                              ::parquet::default_reader_properties(), nullptr, &reader));
+                              ::arrow::default_memory_pool(), &reader));
 
   // Read everything
   std::shared_ptr<Table> result;
@@ -2004,8 +2018,7 @@ TEST(TestArrowReadWrite, ListLargeRecords) {
 
   // Read 1 record at a time
   ASSERT_OK_NO_THROW(OpenFile(std::make_shared<BufferReader>(buffer),
-                              ::arrow::default_memory_pool(),
-                              ::parquet::default_reader_properties(), nullptr, &reader));
+                              ::arrow::default_memory_pool(), &reader));
 
   std::unique_ptr<ColumnReader> col_reader;
   ASSERT_OK(reader->GetColumn(0, &col_reader));
@@ -2216,9 +2229,8 @@ class TestNestedSchemaRead : public ::testing::TestWithParam<Repetition::type> {
   void InitReader() {
     std::shared_ptr<Buffer> buffer;
     ASSERT_OK_NO_THROW(nested_parquet_->Finish(&buffer));
-    ASSERT_OK_NO_THROW(
-        OpenFile(std::make_shared<BufferReader>(buffer), ::arrow::default_memory_pool(),
-                 ::parquet::default_reader_properties(), nullptr, &reader_));
+    ASSERT_OK_NO_THROW(OpenFile(std::make_shared<BufferReader>(buffer),
+                                ::arrow::default_memory_pool(), &reader_));
   }
 
   void InitNewParquetFile(const std::shared_ptr<GroupNode>& schema, int num_rows) {
@@ -2780,8 +2792,10 @@ class TestArrowReadDictionary : public ::testing::TestWithParam<double> {
 
   void CheckReadWholeFile(const Table& expected) {
     std::unique_ptr<FileReader> reader;
-    ASSERT_OK_NO_THROW(OpenFile(std::make_shared<BufferReader>(buffer_),
-                                ::arrow::default_memory_pool(), properties_, &reader));
+
+    FileReaderBuilder builder;
+    ASSERT_OK_NO_THROW(builder.Open(std::make_shared<BufferReader>(buffer_)));
+    ASSERT_OK(builder.properties(properties_)->Build(&reader));
 
     std::shared_ptr<Table> actual;
     ASSERT_OK_NO_THROW(reader->ReadTable(&actual));

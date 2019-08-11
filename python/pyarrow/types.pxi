@@ -259,6 +259,27 @@ cdef class ListType(DataType):
         return pyarrow_wrap_data_type(self.list_type.value_type())
 
 
+cdef class LargeListType(DataType):
+    """
+    Concrete class for large list data types
+    (like ListType, but with 64-bit offsets).
+    """
+
+    cdef void init(self, const shared_ptr[CDataType]& type) except *:
+        DataType.init(self, type)
+        self.list_type = <const CLargeListType*> type.get()
+
+    def __reduce__(self):
+        return large_list, (self.value_type,)
+
+    @property
+    def value_type(self):
+        """
+        The data type of large list values.
+        """
+        return pyarrow_wrap_data_type(self.list_type.value_type())
+
+
 cdef class StructType(DataType):
     """
     Concrete class for struct data types.
@@ -1589,6 +1610,40 @@ cpdef ListType list_(value_type):
     return out
 
 
+cpdef LargeListType large_list(value_type):
+    """
+    Create LargeListType instance from child data type or field
+
+    This data type may not be supported by all Arrow implementations.
+    Unless you need to represent data larger than 2**31 elements, you should
+    prefer list_().
+
+    Parameters
+    ----------
+    value_type : DataType or Field
+
+    Returns
+    -------
+    list_type : DataType
+    """
+    cdef:
+        DataType data_type
+        Field _field
+        shared_ptr[CDataType] list_type
+        LargeListType out = LargeListType.__new__(LargeListType)
+
+    if isinstance(value_type, DataType):
+        _field = field('item', value_type)
+    elif isinstance(value_type, Field):
+        _field = value_type
+    else:
+        raise TypeError('List requires DataType or Field')
+
+    list_type.reset(new CLargeListType(_field.sp_field))
+    out.init(list_type)
+    return out
+
+
 cpdef DictionaryType dictionary(index_type, value_type, bint ordered=False):
     """
     Dictionary (categorical, or simply encoded) type
@@ -1608,6 +1663,9 @@ cpdef DictionaryType dictionary(index_type, value_type, bint ordered=False):
         DataType _value_type = ensure_type(value_type, allow_none=False)
         DictionaryType out = DictionaryType.__new__(DictionaryType)
         shared_ptr[CDataType] dict_type
+
+    if _index_type.id not in {Type_INT8, Type_INT16, Type_INT32, Type_INT64}:
+        raise TypeError("The dictionary index type should be signed integer.")
 
     dict_type.reset(new CDictionaryType(_index_type.sp_type,
                                         _value_type.sp_type, ordered == 1))
