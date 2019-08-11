@@ -77,6 +77,12 @@ ARROW_PYTHON_EXPORT
 Status ConvertPySequence(PyObject* obj, const PyConversionOptions& options,
                          std::shared_ptr<ChunkedArray>* out);
 
+/// \brief Convert Python Object to arrow type
+/// \param[in] the Python object to convert
+/// \param[in] the 
+/// \return Status
+ARROW_PYTHON_EXPORT
+Status ConvertPyObject(PyObject* obj, std::shared_ptr<DataType>* out);
 }  // namespace py
 }  // namespace arrow
 

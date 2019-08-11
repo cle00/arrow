@@ -1041,5 +1041,19 @@ Status ConvertPySequence(PyObject* obj, const PyConversionOptions& options,
   return ConvertPySequence(obj, nullptr, options, out);
 }
 
+Status ConvertPyObject(PyObject* obj, std::shared_ptr<DataType>* out) {
+
+  PyAcquireGIL lock;
+
+  std::shared_ptr<DataType> real_type;
+  
+  TypeInferrer inferrer(false, 1);
+  inferrer.Visit(obj, true);
+  inferrer.GetType(*real_type);
+  
+  out = *real_type
+  return Status::OK();
+};
+
 }  // namespace py
 }  // namespace arrow
