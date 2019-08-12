@@ -1056,10 +1056,8 @@ Status ConvertPyObject(PyObject* obj, std::shared_ptr<DataType>* out) {
 
   std::shared_ptr<DataType> real_type;
   
-  TypeInferrer inferrer(false, 1);
-  inferrer.Visit(obj, true);
-  inferrer.GetType(*real_type);
-  
+  InferArrowType(obj, nullptr, false, &real_type) 
+  using ScalarType = typename TypeTraits<real_type->id()>::ScalarType;
   out = *real_type
   return Status::OK();
 };
