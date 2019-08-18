@@ -136,7 +136,7 @@ if(ARROW_BUILD_TESTS)
   add_arrow_test(python-test
                  SOURCES
                  python-test.cc
-                 jc-test.cc
+                 test.cc
                  STATIC_LINK_LIBS
                  "${ARROW_PYTHON_TEST_LINK_LIBS}"
                  EXTRA_LINK_LIBS

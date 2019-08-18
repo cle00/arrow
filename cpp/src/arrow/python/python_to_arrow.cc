@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "arrow/array.h"
+#include "arrow/scalar.h"
 #include "arrow/builder.h"
 #include "arrow/status.h"
 #include "arrow/table.h"
@@ -1050,17 +1051,40 @@ Status ConvertPySequence(PyObject* obj, const PyConversionOptions& options,
   return ConvertPySequence(obj, nullptr, options, out);
 }
 
-Status ConvertPyObject(PyObject* obj, std::shared_ptr<DataType>* out) {
+Status GetDataType(const std::shared_ptr<DataType>& type, std::shared_ptr<Scalar>* out) {
+  switch (type->id()) {
+    case Type::INT64:{
+      int64_t v = 2;
+      *out = std::make_shared<Int64Scalar>(v);
+      break;
+    }
+    case Type::UINT64: {
+      int64_t v1 = 2;
+      *out = std::make_shared<Int64Scalar>(v1);
+      break;
+    }
+    default: {
+      return Status::NotImplemented("Sequence converter for type ", type->ToString(),
+                                    " not implemented");
+    }
+  }
 
-  PyAcquireGIL lock;
+  return Status::OK();
+}
+
+Status ConvertPyObject(PyObject* obj, std::shared_ptr<Scalar>* out) {
+
+  // PyAcquireGIL lock;
 
   std::shared_ptr<DataType> real_type;
-  
-  InferArrowType(obj, nullptr, false, &real_type) 
-  using ScalarType = typename TypeTraits<real_type->id()>::ScalarType;
-  out = *real_type
+  // std::shared_ptr<Scalar> real_out;
+
+  RETURN_NOT_OK(InferArrowType(obj, nullptr, false, &real_type));
+  RETURN_NOT_OK(GetDataType(real_type, out));
+  // std::cout << real_out << std::endl;
+  // *out = real_out;
   return Status::OK();
-};
+}
 
 }  // namespace py
 }  // namespace arrow

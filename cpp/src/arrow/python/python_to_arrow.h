@@ -28,6 +28,7 @@
 
 #include "arrow/python/visibility.h"
 #include "arrow/type.h"
+#include "arrow/scalar.h"
 #include "arrow/util/macros.h"
 
 #include "arrow/python/common.h"

@@ -1,9 +1,11 @@
 #include "gtest/gtest.h"
 #include "arrow/scalar.h"
-#include "arrow/python/platform.h"
+#include "arrow/status.h"
+#include "arrow/python/python_to_arrow.h"
+#include "arrow/util/logging.h"
+#include "arrow/testing/gtest_util.h"
 
 #define GTEST_COUT std::cerr << "[          ] [ INFO ] >>>> "
-
 
 std::string pprint(PyObject* obj)
 {
@@ -12,13 +14,11 @@ std::string pprint(PyObject* obj)
     return PyBytes_AS_STRING(pyStr);
 }
 
-TEST(JCTest, FirstTest) {
-    int64_t test_int = 35;
-    auto out = arrow::Int64Scalar(test_int);
-    ASSERT_EQ(35, out.value);
-
+TEST(Test, FirstTest) {
+    std::shared_ptr<arrow::Scalar> out;
     PyObject* val = PyLong_FromLong(6568381);
 
     GTEST_COUT << pprint(val) << std::endl;
-
+    arrow::Status aa = arrow::py::ConvertPyObject(val, &out);
+    GTEST_COUT << out->type << std::endl;
 }
