@@ -28,6 +28,7 @@
 
 #include "arrow/python/visibility.h"
 #include "arrow/type.h"
+#include "arrow/scalar.h"
 #include "arrow/util/macros.h"
 
 #include "arrow/python/common.h"
@@ -77,6 +78,8 @@ ARROW_PYTHON_EXPORT
 Status ConvertPySequence(PyObject* obj, const PyConversionOptions& options,
                          std::shared_ptr<ChunkedArray>* out);
 
+ARROW_PYTHON_EXPORT
+Status ConvertPyObject(PyObject* obj, std::shared_ptr<Scalar>* out);
 }  // namespace py
 }  // namespace arrow
 
