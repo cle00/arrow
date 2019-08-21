@@ -1085,15 +1085,11 @@ Status GetDataType(const std::shared_ptr<DataType>& type, std::shared_ptr<Scalar
 
 Status ConvertPyObject(PyObject* obj, std::shared_ptr<Scalar>* out) {
 
-  // PyAcquireGIL lock;
-
+  PyAcquireGIL lock;
   std::shared_ptr<DataType> real_type;
-  // std::shared_ptr<Scalar> real_out;
 
   RETURN_NOT_OK(InferArrowType(obj, nullptr, false, &real_type));
   RETURN_NOT_OK(GetDataType(real_type, out));
-  // std::cout << real_out << std::endl;
-  // *out = real_out;
   return Status::OK();
 }
 
