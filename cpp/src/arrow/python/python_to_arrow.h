@@ -80,6 +80,9 @@ Status ConvertPySequence(PyObject* obj, const PyConversionOptions& options,
 
 ARROW_PYTHON_EXPORT
 Status ConvertPyObject(PyObject* obj, std::shared_ptr<Scalar>* out);
+
+ARROW_PYTHON_EXPORT
+Status GetDataType(const std::shared_ptr<DataType>& type, std::shared_ptr<Scalar>* out);
 }  // namespace py
 }  // namespace arrow
 

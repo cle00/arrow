@@ -628,6 +628,20 @@ Status InferArrowType(PyObject* obj, PyObject* mask, bool pandas_null_sentinels,
   return Status::OK();
 }
 
+// Non-exhaustive type inference
+Status InferArrowTypeSingleton(PyObject* obj, PyObject* mask, bool pandas_null_sentinels,
+                      std::shared_ptr<DataType>* out_type) {
+  PyDateTime_IMPORT;
+  bool keep_going = true;
+  TypeInferrer inferrer(pandas_null_sentinels);
+  RETURN_NOT_OK(inferrer.Visit(obj, &keep_going));
+  RETURN_NOT_OK(inferrer.GetType(out_type));
+  if (*out_type == nullptr) {
+    return Status::TypeError("Unable to determine data type");
+  }
+
+  return Status::OK();
+}
 Status InferArrowTypeAndSize(PyObject* obj, PyObject* mask, bool pandas_null_sentinels,
                              int64_t* size, std::shared_ptr<DataType>* out_type) {
   if (!PySequence_Check(obj)) {

@@ -51,6 +51,9 @@ arrow::Status InferArrowType(PyObject* obj, PyObject* mask, bool pandas_null_sen
                              std::shared_ptr<arrow::DataType>* out_type);
 
 ARROW_PYTHON_EXPORT
+arrow::Status InferArrowTypeSingleton(PyObject* obj, PyObject* mask, bool pandas_null_sentinels,
+                                std::shared_ptr<arrow::DataType>* out_type);
+ARROW_PYTHON_EXPORT
 arrow::Status InferArrowTypeAndSize(PyObject* obj, PyObject* mask,
                                     bool pandas_null_sentinels, int64_t* size,
                                     std::shared_ptr<arrow::DataType>* out_type);
